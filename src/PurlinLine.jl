@@ -1352,7 +1352,7 @@ function calculate_torsion_strength(purlin_line)
         #This is the maximum magnitude of the warping stress function.  
         Wn = maximum(abs.(purlin_line.cross_section_data[section_index].section_properties.wn))
 
-        Bn, eBn = AISIS100.v24.h411(Cw, Fy, Wn, purlin_line.inputs.design_code)
+        Bn, eBn = AISIS100.v2024.h411(Cw, Fy, Wn, purlin_line.inputs.design_code)
 
         torsion_strength[i] = TorsionStrengthData(Wn, Bn, eBn)
 
@@ -2153,7 +2153,7 @@ function calculate_flexure_torsion_demand_to_capacity(purlin_line)
     end
 
 
-    results = AISIS100.v24.h42.(purlin_line.internal_forces.Mxx, purlin_line.internal_forces.Myy, purlin_line.internal_forces.B, free_flange_moment, eMnℓ_xx_all, eMnℓ_yy_all, eBn_all, eMnℓ_yy_free_flange_all)
+    results = AISIS100.v2024.h42.(purlin_line.internal_forces.Mxx, purlin_line.internal_forces.Myy, purlin_line.internal_forces.B, free_flange_moment, eMnℓ_xx_all, eMnℓ_yy_all, eBn_all, eMnℓ_yy_free_flange_all)
 
     action_Mx = [x[1] for x in results]
     action_My = [x[2] for x in results]
