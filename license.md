@@ -1,6 +1,6 @@
-StructuresKit.jl is licensed under the MIT License:
+PurlinLine.jl is licensed under the MIT License:
 
-> Copyright (c) 2019-2021: Cristopher D. Moen other contributors.
+> Copyright (c) 2019-2026: Cristopher D. Moen other contributors.
 >
 > Permission is hereby granted, free of charge, to any person obtaining
 > a copy of this software and associated documentation files (the
