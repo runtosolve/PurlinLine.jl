@@ -1,7 +1,7 @@
 name = "PurlinLine"
 uuid = "720b0b74-7d22-47cf-9c9b-19f6078eb386"
-authors = ["Cris Moen <cris.moen@runtosolve.com>"]
 version = "0.1.0"
+authors = ["Cris Moen <cris.moen@runtosolve.com>"]
 
 [deps]
 AISIS100 = "01f7396e-a581-4110-84fa-e8964400bef8"
@@ -22,3 +22,6 @@ ThinWalledBeamColumn = "79be238d-76c4-453b-a7f7-71368c01feb5"
 
 [compat]
 julia = "1.6.1"
+
+[workspace]
+projects = ["test"]
