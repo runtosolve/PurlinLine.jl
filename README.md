@@ -247,4 +247,4 @@ See: Moen, C.D. (2020). *Metal Building Roof Purlin Line Strength by Computation
 
 ## License
 
-See [license.md](license.md).
+See [license](LICENSE).
