@@ -4,7 +4,7 @@
 
 using PurlinLine
 
-design_code = "AISI S100-16 ASD"
+design_code = "ASD"
 
 # Define the properties of each purlin segment along the line.
                 #length, section_properties, material_properties
@@ -32,18 +32,18 @@ frame_flange_width = 10.0
 
 support_locations = [0.0, 25.0*12]
 
-purlin_frame_connections = "bottom flange connection"
-# purlin_frame_connections = "anti-roll clip"
+#purlin_frame_connections = "bottom flange connection"
+purlin_frame_connections = "anti-roll clip"
 
 bridging_locations = Float64[ ]
 
+loading_direction = "gravity"
+
 #Calculate purlin line design variables from user inputs and store them in the data structure.
 
-inputs = PurlinLine.Inputs(design_code, segments, spacing, roof_slope, cross_section_dimensions, material_properties, deck_details, deck_material_properties, frame_flange_width, support_locations, purlin_frame_connections, bridging_locations)
+inputs = PurlinLine.Inputs(loading_direction, design_code, segments, spacing, roof_slope, cross_section_dimensions, material_properties, deck_details, deck_material_properties, frame_flange_width, support_locations, purlin_frame_connections, bridging_locations)
 
 purlin_line = PurlinLine.build(inputs)
-
-purlin_line.loading_direction = "gravity"
 
 #Perform a test to collapse.
 purlin_line = PurlinLine.test(purlin_line)
@@ -64,7 +64,7 @@ index = searchsortedfirst(v, x)
 
 
 
-using Dierckx, S100AISI
+using Dierckx, AISIS100
 
 
 function calculate_distortional_buckling_gradient_factor(Mxx, z, Lcrd)
@@ -90,7 +90,7 @@ function calculate_distortional_buckling_gradient_factor(Mxx, z, Lcrd)
     Lm = Lcrd  .* ones(Float64, length(M1))
     L = Lcrd  .* ones(Float64, length(M1))
 
-    Β_range = S100AISI.v16.app23333.(L, Lm, M1, M2)
+    Β_range = AISIS100.v16.app23333.(L, Lm, M1, M2)
 
     Β = Array{Float64}(undef, length(z))
 

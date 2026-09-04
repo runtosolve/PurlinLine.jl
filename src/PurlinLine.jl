@@ -2,8 +2,7 @@ module PurlinLine
 
 using Base: String, Float64
 using CUFSM, Dierckx, NumericalIntegration, AISIS100, SectionProperties, CrossSectionGeometry, InternalForces
-using ThinWalledBeam, ThinWalledBeamColumn, ScrewConnections
-
+using ThinWalledBeamColumn, ScrewConnections, PlautBeamFiniteElement
 
 export UI
 include("UI.jl")
@@ -237,7 +236,7 @@ mutable struct Model
 
     web_crippling::Array{PurlinLine.WebCripplingData}
 
-    model::ThinWalledBeam.Model
+    model::Any
 
     free_flange_model::ThinWalledBeamColumn.Model
 
@@ -1779,7 +1778,7 @@ function build(inputs)
 end
 
 
-function thin_walled_beam_interface(purlin_line)
+function plaut_beam_interface(purlin_line)
 
     #Discretize purlin line.
     member_definitions, dz, z, m = discretize_purlin_line(purlin_line)
@@ -1858,6 +1857,23 @@ function thin_walled_beam_interface(purlin_line)
         end_boundary_conditions[2] = "free"  #cantilever
     end
 
+    #PlautBeamFiniteElement only supports fully-fixed interior restraint (u=v=ϕ=0 at every
+    #support), so "bottom flange connection" (u,v fixed but ϕ free) can't be expressed yet.
+    purlin_line.inputs.purlin_frame_connections == "anti-roll clip" || error("PlautBeamFiniteElement interface currently only supports purlin_frame_connections == \"anti-roll clip\"")
+
+    #PlautBeamFiniteElement's BeamModel only supports :pinned/:fixed ends, not cantilevers.
+    all(end_boundary_conditions .== "simply-supported") || error("PlautBeamFiniteElement interface currently only supports simply-supported (pinned) ends, not cantilever")
+    bc_left = :pinned
+    bc_right = :pinned
+
+    #Build a uniform element length for PlautBeamFiniteElement's BeamModel (it requires a
+    #single element length across the whole beam) that lands exactly on every support and
+    #bridging location, using the GCD of the spans between them, subdivided by 40 for FE accuracy.
+    spans = diff(supports_and_bridging)
+    Le = reduce(gcd, rationalize.(spans)) / 40
+    nel = round(Int, sum(spans) / Le)
+    interior_supports = supports_and_bridging[2:end-1]
+
     #Calculate load magnitudes from user-defined pressure for ThinWalledBeam.
     q = purlin_line.applied_pressure * purlin_line.inputs.spacing #go from pressure to line load
 
@@ -1870,7 +1886,8 @@ function thin_walled_beam_interface(purlin_line)
         qx = -q .* sin(deg2rad(purlin_line.inputs.roof_slope)) .* ones(Float64, num_nodes)
         qy = q .* cos(deg2rad(purlin_line.inputs.roof_slope)) .* ones(Float64, num_nodes)
     end
-
+    #Preserve the old ThinWalledBeam convention: no roof-slope component under uplift (q<0).
+    θ_beam = q < 0 ? 0.0 : deg2rad(purlin_line.inputs.roof_slope)
 
     center_top_flange_node_index = sum(purlin_line.cross_section_data[1].n[1:3]) + sum(purlin_line.cross_section_data[1].n_radius[1:3]) + floor(Int,purlin_line.cross_section_data[1].n[4]/2) + 1
     ax_purlin_section = purlin_line.cross_section_data[1].node_geometry[center_top_flange_node_index, 1] - purlin_line.cross_section_data[1].section_properties.xs
@@ -1879,8 +1896,26 @@ function thin_walled_beam_interface(purlin_line)
     
     ax = ax_purlin_section * ones(Float64, num_nodes)
     ay = ay_purlin_section * ones(Float64, num_nodes)
+    
+    #Build PlautBeamFiniteElement inputs from the (uniform) section, material, and
+    #restraint properties defined above — just grabbing element [1] from each array,
+    #since they're already broadcast to a single repeated value at every node.
+    section = PlautBeamFiniteElement.Section(Ix=Ix[1], Iy=Iy[1], Ixy=Ixy[1], J=J[1], Cw=Cw[1], ax=ax[1], ay=ay[1])
+    material = PlautBeamFiniteElement.Material(E=E[1], G=G[1])
+    restraint = PlautBeamFiniteElement.Restraint(kx=kx[1], kϕ=kϕ[1])
 
-    return z, Ix, Iy, Ixy, J, Cw, E, G, kx, kϕ, ay_kx, qx, qy, ax, ay, end_boundary_conditions, supports
+    #Assemble and solve the PlautBeamFiniteElement beam model.
+    model = PlautBeamFiniteElement.BeamModel(L=purlin_line_length, nel=nel, section=section, material=material,
+        restraint=restraint, q=q, θ=θ_beam, bc_left=bc_left, bc_right=bc_right, interior_supports=interior_supports)
+    sol = PlautBeamFiniteElement.solve_beam(model)
+
+    #Evaluate deflections at the existing (nonuniform) z mesh so downstream code
+    #(calculate_internal_forces, etc.) can use them exactly as before.
+    u = PlautBeamFiniteElement.lateral_deflection.(Ref(sol), z)
+    v = PlautBeamFiniteElement.vertical_deflection.(Ref(sol), z)
+    ϕ = PlautBeamFiniteElement.twist.(Ref(sol), z)
+
+    return z, Ix, Iy, Ixy, J, Cw, E, G, kx, kϕ, ay_kx, qx, qy, ax, ay, end_boundary_conditions, supports, u, v, ϕ
 
 end
 
@@ -2379,11 +2414,12 @@ Returns the PurlinLine structural response to an applied pressure.
 
 function analyze(purlin_line)
 
-    #Translate purlin_line design variables to ThinWalledBeam design variables.
-    z, Ix, Iy, Ixy, J, Cw, E, G, kx, kϕ, ay_kx, qx, qy, ax, ay, end_boundary_conditions, supports = PurlinLine.thin_walled_beam_interface(purlin_line)
+    #Translate purlin_line design variables to PlautBeamFiniteElement design variables and solve.
+    z, Ix, Iy, Ixy, J, Cw, E, G, kx, kϕ, ay_kx, qx, qy, ax, ay, end_boundary_conditions, supports, u, v, ϕ = PurlinLine.plaut_beam_interface(purlin_line)
 
-    #Solve ThinWalledBeam model.
-    purlin_line.model = ThinWalledBeam.solve(z, Ix, Iy, Ixy, J, Cw, E, G, kx, kϕ, ay_kx, qx, qy, ax, ay, end_boundary_conditions, supports)
+    #Wrap the PlautBeamFiniteElement results in the same .inputs.*/.outputs.u/v/ϕ shape
+    #ThinWalledBeam.Model used, so downstream code needs no changes.
+    purlin_line.model = (inputs=(z=z, Ix=Ix, Iy=Iy, Ixy=Ixy, J=J, Cw=Cw, E=E, G=G, ax=ax, ay=ay, ay_kx=ay_kx, kx=kx, kϕ=kϕ, qx=qx, qy=qy, end_boundary_conditions=end_boundary_conditions, supports=supports), outputs=(u=u, v=v, ϕ=ϕ))
 
     #Calculate purlin line internal forces and moments from deformations, add them to data structure.
     Mxx, Myy, Vxx, Vyy, T, B = calculate_internal_forces(z, purlin_line.model.outputs.u, purlin_line.model.outputs.v, purlin_line.model.outputs.ϕ, E, G, Ix, Iy, J, Cw)
