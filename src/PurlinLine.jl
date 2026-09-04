@@ -1835,6 +1835,8 @@ function plaut_beam_interface(purlin_line)
     end
 
 
+    to_dof_condition(u_status,v_status,ϕ_status) = (u_status, "free",v_status,"free",ϕ_status,"free")
+
     #Define purlin line end boundary conditions for ThinWalledBeam.
 
     end_boundary_conditions = Array{String}(undef, 2)
@@ -1856,15 +1858,10 @@ function plaut_beam_interface(purlin_line)
     else
         end_boundary_conditions[2] = "free"  #cantilever
     end
-
-    #PlautBeamFiniteElement only supports fully-fixed interior restraint (u=v=ϕ=0 at every
-    #support), so "bottom flange connection" (u,v fixed but ϕ free) can't be expressed yet.
-    purlin_line.inputs.purlin_frame_connections == "anti-roll clip" || error("PlautBeamFiniteElement interface currently only supports purlin_frame_connections == \"anti-roll clip\"")
-
-    #PlautBeamFiniteElement's BeamModel only supports :pinned/:fixed ends, not cantilevers.
+    
     all(end_boundary_conditions .== "simply-supported") || error("PlautBeamFiniteElement interface currently only supports simply-supported (pinned) ends, not cantilever")
-    bc_left = :pinned
-    bc_right = :pinned
+    bc_left = to_dof_condition(supports[1][2],supports[1][3],supports[1][4])
+    bc_right = to_dof_condition(supports[end][2],supports[end][3],supports[end][4])
 
     #Build a uniform element length for PlautBeamFiniteElement's BeamModel (it requires a
     #single element length across the whole beam) that lands exactly on every support and
@@ -1873,6 +1870,7 @@ function plaut_beam_interface(purlin_line)
     Le = reduce(gcd, rationalize.(spans)) / 40
     nel = round(Int, sum(spans) / Le)
     interior_supports = supports_and_bridging[2:end-1]
+    interior_dofs = [to_dof_condition(s[2],s[3],s[4]) for s in supports[2:end-1]]
 
     #Calculate load magnitudes from user-defined pressure for ThinWalledBeam.
     q = purlin_line.applied_pressure * purlin_line.inputs.spacing #go from pressure to line load
@@ -1906,7 +1904,7 @@ function plaut_beam_interface(purlin_line)
 
     #Assemble and solve the PlautBeamFiniteElement beam model.
     model = PlautBeamFiniteElement.BeamModel(L=purlin_line_length, nel=nel, section=section, material=material,
-        restraint=restraint, q=q, θ=θ_beam, bc_left=bc_left, bc_right=bc_right, interior_supports=interior_supports)
+        restraint=restraint, q=q, θ=θ_beam, bc_left=bc_left, bc_right=bc_right, interior_supports=interior_supports, interior_dofs=interior_dofs)
     sol = PlautBeamFiniteElement.solve_beam(model)
 
     #Evaluate deflections at the existing (nonuniform) z mesh so downstream code

@@ -29,8 +29,8 @@ frame_flange_width = 24.0
 
 support_locations = [0.0, 25.0*12]
 
-#purlin_frame_connections = "bottom flange connection"
- purlin_frame_connections = "anti-roll clip"
+purlin_frame_connections = "bottom flange connection"
+#purlin_frame_connections = "anti-roll clip"
 
 bridging_locations =[ ]
 

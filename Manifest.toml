@@ -1462,7 +1462,7 @@ weakdeps = ["REPL"]
 
 [[deps.PlautBeamFiniteElement]]
 deps = ["LinearAlgebra", "NonlinearSolve"]
-git-tree-sha1 = "40326cb81413394b16b9b6537ce7477508090607"
+path = "C:\\Users\\mayth\\Github\\PlautBeamFiniteElement.jl"
 uuid = "8e77ad14-ffa2-4383-ba63-9109f971d658"
 version = "0.2.0"
 
