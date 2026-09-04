@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "65ad94671e2b76726ca0a7c04b905d4c9cedbe70"
+project_hash = "16c50e2c43a4d5cb71d946a534cfd790bffca7ba"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "f7304359109c768cf32dc5fa2d371565bb63b68a"
@@ -1462,9 +1462,9 @@ weakdeps = ["REPL"]
 
 [[deps.PlautBeamFiniteElement]]
 deps = ["LinearAlgebra", "NonlinearSolve"]
-path = "C:\\Users\\mayth\\Github\\PlautBeamFiniteElement.jl"
+git-tree-sha1 = "dfd443404a08ed7e77b065a39df71a7198e99512"
 uuid = "8e77ad14-ffa2-4383-ba63-9109f971d658"
-version = "0.2.0"
+version = "0.3.0"
 
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Statistics"]
