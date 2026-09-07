@@ -291,9 +291,7 @@ function define_span_segments(purlin_spans, purlin_laps, purlin_size_span_assign
 
 end
 
-function calculate_response(purlin_spans, purlin_laps, purlin_spacing, roof_slope, purlin_data, existing_deck_type, existing_deck_data, frame_flange_width, purlin_types, purlin_size_span_assignment, loading_direction)
-
-	design_code = "ASD"
+function calculate_response(purlin_spans, purlin_laps, purlin_spacing, roof_slope, purlin_data, existing_deck_type, existing_deck_data, frame_flange_width, purlin_types, purlin_size_span_assignment, loading_direction, design_code)
 
 	span_segments = define_span_segments(purlin_spans, purlin_laps, purlin_size_span_assignment)
 
