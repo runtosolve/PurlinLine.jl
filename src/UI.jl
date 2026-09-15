@@ -291,7 +291,7 @@ function define_span_segments(purlin_spans, purlin_laps, purlin_size_span_assign
 
 end
 
-function calculate_response(purlin_spans, purlin_laps, purlin_spacing, roof_slope, purlin_data, existing_deck_type, existing_deck_data, frame_flange_width, purlin_types, purlin_size_span_assignment, loading_direction)
+function calculate_response(purlin_spans, purlin_laps, purlin_spacing, roof_slope, purlin_data, existing_deck_type, existing_deck_data, frame_flange_width, purlin_types, purlin_size_span_assignment, loading_direction; DC_tolerance = 0.01, max_iterations = 50)
 
 	design_code = "ASD"
 
@@ -344,7 +344,7 @@ function calculate_response(purlin_spans, purlin_laps, purlin_spacing, roof_slop
 	#Load to collapse.
 	purlin_line_init = deepcopy(purlin_line)
 	purlin_line_init.inputs.loading_direction = loading_direction
-	purlin_line_results = PurlinLine.test(purlin_line_init)
+	purlin_line_results = PurlinLine.test(purlin_line_init; DC_tolerance = DC_tolerance, max_iterations = max_iterations)
 
 
 	return purlin_line_results
