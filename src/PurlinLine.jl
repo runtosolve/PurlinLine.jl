@@ -1908,10 +1908,13 @@ function plaut_beam_interface(purlin_line)
     sol = PlautBeamFiniteElement.solve_beam(model)
 
     #Evaluate deflections at the existing (nonuniform) z mesh so downstream code
-    #(calculate_internal_forces, etc.) can use them exactly as before.
-    u = PlautBeamFiniteElement.lateral_deflection.(Ref(sol), z)
-    v = PlautBeamFiniteElement.vertical_deflection.(Ref(sol), z)
-    ϕ = PlautBeamFiniteElement.twist.(Ref(sol), z)
+    #(calculate_internal_forces, etc.) can use them exactly as before. z comes from a
+    #cumulative sum of segment increments, so its last entry can overshoot L by roundoff
+    #(e.g. 720.0000000000002), which the evaluators reject; clamp it onto [0, L].
+    z_eval = clamp.(z, 0.0, purlin_line_length)
+    u = PlautBeamFiniteElement.lateral_deflection.(Ref(sol), z_eval)
+    v = PlautBeamFiniteElement.vertical_deflection.(Ref(sol), z_eval)
+    ϕ = PlautBeamFiniteElement.twist.(Ref(sol), z_eval)
 
     return z, Ix, Iy, Ixy, J, Cw, E, G, kx, kϕ, ay_kx, qx, qy, ax, ay, end_boundary_conditions, supports, u, v, ϕ
 
@@ -2556,23 +2559,33 @@ function identify_failure_limit_state(purlin_line)
 end
 
 """
-    test(purlin_line)
+    test(purlin_line; DC_tolerance = 0.01, max_iterations = 50)
 
 Returns the PurlinLine failure pressure, failure location, and failure limit state.
+
+The failure pressure is the applied pressure at which the governing demand-to-capacity
+ratio equals 1.0, found within `DC_tolerance`. Each step first tries the
+secant-through-origin update `p / DC`, which is exact when the response is linear in
+pressure. The free flange is a beam-column whose stiffness depends on its axial force,
+so DC can grow faster than linearly near the free flange buckling load and that update
+alone can oscillate without ever settling. To prevent that, the search keeps a bracket
+`[p_safe, p_fail]` (DC < 1 below, DC >= 1 or a non-finite response above); any step
+that lands outside the bracket is replaced by bisection. `max_iterations` caps the
+search. If it is reached, a warning is issued and the purlin line is returned at
+`p_safe`, the largest pressure found with DC < 1, so the reported capacity is a lower
+bound.
 """
 
-function test(purlin_line)
+function test(purlin_line; DC_tolerance = 0.01, max_iterations = 50)
 
-    DC_tolerance = 0.01  
-    
     if purlin_line.inputs.loading_direction == "gravity"
 
         load_sign = 1.0
-    
+
     elseif purlin_line.inputs.loading_direction =="uplift"
-    
+
         load_sign = -1.0
-    
+
     end
 
     #Run a very small pressure to get the test going.
@@ -2581,23 +2594,61 @@ function test(purlin_line)
     max_DC = find_max_demand_to_capacity(purlin_line)
 
     #Define initial residual.
-    residual = 1.0 - abs(max_DC)
+    residual = isfinite(max_DC) ? abs(1.0 - abs(max_DC)) : Inf
+
+    #Bracket on pressure magnitude: DC < 1 at p_safe, DC >= 1 (or non-finite) at p_fail.
+    p_safe = 0.0
+    p_fail = Inf
 
     #Define number of iterations to find failure load.
     num_iterations_to_failure = 0
 
-    while residual > DC_tolerance
+    while residual > DC_tolerance && num_iterations_to_failure < max_iterations
 
-        new_pressure = purlin_line.applied_pressure / max_DC
-        #purlin_line.applied_pressure = purlin_line.applied_pressure + (new_pressure - purlin_line.applied_pressure) / 2
-        purlin_line.applied_pressure = new_pressure
+        p = abs(purlin_line.applied_pressure)
+
+        #Update the bracket with the last result. A pressure at or above p_fail is never
+        #treated as safe, so a post-buckling sign flip in the free flange response cannot
+        #widen the bracket upward.
+        if isfinite(max_DC) && abs(max_DC) < 1.0 && p < p_fail
+            p_safe = max(p_safe, p)
+        else
+            p_fail = min(p_fail, p)
+        end
+
+        #Secant-through-origin step, exact for a response that is linear in pressure.
+        new_p = (isfinite(max_DC) && max_DC != 0.0) ? p / abs(max_DC) : NaN
+
+        #Fall back to bisection whenever the step leaves the bracket (or is not finite).
+        if !(p_safe < new_p < p_fail)
+            new_p = isfinite(p_fail) ? 0.5 * (p_safe + p_fail) : 2.0 * max(p_safe, p)
+        end
+
+        purlin_line.applied_pressure = load_sign * new_p
 
         purlin_line = PurlinLine.analyze(purlin_line)
         max_DC = find_max_demand_to_capacity(purlin_line)
 
-        residual = abs(1.0 - abs(max_DC))
+        residual = isfinite(max_DC) ? abs(1.0 - abs(max_DC)) : Inf
 
         num_iterations_to_failure += 1
+
+    end
+
+    if residual > DC_tolerance
+
+        #Did not settle within tolerance. Return the largest pressure found with DC < 1.
+        p_return = p_safe > 0.0 ? p_safe : abs(purlin_line.applied_pressure)
+        purlin_line.applied_pressure = load_sign * p_return
+        purlin_line = PurlinLine.analyze(purlin_line)
+        max_DC = find_max_demand_to_capacity(purlin_line)
+
+        psf = 1000.0 * 144.0   #kips/in^2 -> psf, for the message only
+        @warn "PurlinLine.test did not converge to DC = 1 within DC_tolerance = $DC_tolerance in $max_iterations iterations. " *
+              "Failure pressure is bracketed between $(round(p_safe * psf, digits=3)) psf (DC < 1) and " *
+              "$(isfinite(p_fail) ? string(round(p_fail * psf, digits=3)) : "not found") psf (DC >= 1). " *
+              "Returning the lower bound, $(round(p_return * psf, digits=3)) psf with DC = $(round(max_DC, digits=4)). " *
+              "Relax DC_tolerance or increase max_iterations if a tighter result is needed."
 
     end
 
