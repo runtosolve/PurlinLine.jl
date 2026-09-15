@@ -4,7 +4,7 @@ Pkg.activate(".")
 using PurlinLine
 
 
-design_code = "AISI S100-16 ASD"
+design_code = "ASD"
 
 # Define the properties of each purlin segment along the line.
                 #length, section_properties, material_properties
@@ -37,16 +37,18 @@ frame_flange_width = 24.0
 
 support_locations = [0.0, 25.0*12, 50.0*12]
 
-purlin_frame_connections = "bottom flange connection"
-# purlin_frame_connections = "anti-roll clip"
+#purlin_frame_connections = "bottom flange connection"
+purlin_frame_connections = "anti-roll clip"
 
 bridging_locations =[0.0, 10.0*12, 50.0*12]
 
-#Calculate purlin line design variables from user inputs and store them in the data structure.
-purlin_line = PurlinLine.build(design_code, segments, spacing, roof_slope, cross_section_dimensions, material_properties, deck_details, deck_material_properties, frame_flange_width, support_locations, purlin_frame_connections, bridging_locations);
-# purlin_line.applied_pressure = 10 / 1000 / 144 #psf to kips/in^2
+loading_direction = "gravity"
 
-purlin_line.loading_direction = "gravity"
+#Calculate purlin line design variables from user inputs and store them in the data structure.
+inputs = PurlinLine.Inputs(loading_direction, design_code, segments, spacing, roof_slope, cross_section_dimensions, material_properties, deck_details, deck_material_properties, frame_flange_width, support_locations, purlin_frame_connections, bridging_locations)
+
+purlin_line = PurlinLine.build(inputs);
+# purlin_line.applied_pressure = 10 / 1000 / 144 #psf to kips/in^2
 
 #Perform a test to collapse.
 purlin_line = PurlinLine.test(purlin_line);
@@ -54,7 +56,7 @@ purlin_line = PurlinLine.test(purlin_line);
 purlin_line.applied_pressure*1000*144
 
 using Plots
-plot(purlin_line.model.z, purlin_line.internal_forces.T)
+plot(purlin_line.model.inputs.z, purlin_line.internal_forces.T)
 
 
 
