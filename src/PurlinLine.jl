@@ -2,7 +2,7 @@ module PurlinLine
 
 using Base: String, Float64
 using CUFSM, Dierckx, NumericalIntegration, AISIS100, SectionProperties, CrossSectionGeometry, InternalForces
-using ThinWalledBeamColumn, ScrewConnections, PlautBeamFiniteElement
+using PlautBeamColumnElement, ScrewConnections, PlautBeamFiniteElement
 
 export UI
 include("UI.jl")
@@ -238,7 +238,7 @@ mutable struct Model
 
     model::Any
 
-    free_flange_model::ThinWalledBeamColumn.Model
+    free_flange_model::PlautBeamColumnElement.Model
 
     internal_forces::InternalForceData
 
@@ -2121,7 +2121,7 @@ function beam_column_interface(purlin_line)
     end
 
 
-    return z, A, Ix, Iy, Io, J, Cw, E, G, ax, ay, kx, ky, kϕ, hx, hy, kH, end_boundary_conditions, supports
+    return z, A, Ix, Iy, Io, J, Cw, E, G, ax, ay, kx, ky, kϕ, hx, hy, kH, end_boundary_conditions, supports, xo, yo
 
 end
 
@@ -2432,7 +2432,7 @@ function analyze(purlin_line)
     purlin_line.internal_forces = InternalForceData(P, Mxx, Myy, Vxx, Vyy, T, B)
 
     #Translate purlin_line design variables to BeamColumn design variables.
-    z, Af, Ixf, Iyf, Iof, Jf, Cwf, E, G, axf, ayf, kxf, kyf, kϕf, hxf, hyf, kH, end_boundary_conditions, supports = beam_column_interface(purlin_line)
+    z, Af, Ixf, Iyf, Iof, Jf, Cwf, E, G, axf, ayf, kxf, kyf, kϕf, hxf, hyf, kH, end_boundary_conditions, supports, xof, yof = beam_column_interface(purlin_line)
 
    
     #Calculate axial force in free flange.
@@ -2445,12 +2445,11 @@ function analyze(purlin_line)
     num_nodes = length(z)
     qyf = zeros(Float64, num_nodes)
 
-    #Set up the free flange model.
-    # purlin_line.free_flange_model = BeamColumn.define(z, m, member_definitions, section_properties, material_properties, kxf, kyf, kϕf, hxf, hyf, qxf, qyf, Pf, axf, ayf, end_boundary_conditions, supports)
-
-
-    #Run the free flange model.
-    purlin_line.free_flange_model = ThinWalledBeamColumn.solve(z, Af, Ixf, Iyf, Iof, Jf, Cwf, E, G, axf, ayf, kxf, kyf, kϕf, hxf, hyf, qxf, qyf, Pf, end_boundary_conditions, supports)
+    #Set up and solve the free flange beam-column model with PlautBeamColumnElement (Plaut & Moen 2020,
+    #Thin-Walled Structures 154, 106897).  The shear center offsets xof, yof of the free flange couple
+    #its axial force to bending and twist; ThinWalledBeamColumn omitted these terms.  The lateral and
+    #rotational springs act at (hxf, hyf) from the free flange centroid.
+    purlin_line.free_flange_model = PlautBeamColumnElement.solve(z, Af, Ixf, Iyf, Iof, Jf, Cwf, E, G, axf, ayf, kxf, kyf, kϕf, hxf, hyf, qxf, qyf, Pf, end_boundary_conditions, supports; xo = xof, yo = yof)
 
     #Calculate internal forces in the free flange.
     Mxxf, Myyf, Vxxf, Vyyf, Tf, Bf = calculate_internal_forces(z, purlin_line.free_flange_model.outputs.u, purlin_line.free_flange_model.outputs.v, purlin_line.free_flange_model.outputs.ϕ, E, G, Ixf, Iyf, Jf, Cwf)
