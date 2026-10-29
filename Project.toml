@@ -30,6 +30,7 @@ CrossSectionGeometry = {rev = "main", url = "https://github.com/runtosolve/Cross
 FornbergFiniteDiff = {rev = "main", url = "https://github.com/runtosolve/FornbergFiniteDiff.jl.git"}
 InternalForces = {rev = "main", url = "https://github.com/runtosolve/InternalForces.jl.git"}
 LinesCurvesNodes = {rev = "main", url = "https://github.com/runtosolve/LinesCurvesNodes.jl.git"}
+PlautBeamFiniteElement = {rev = "Linear-Solver", url = "https://github.com/runtosolve/PlautBeamFiniteElement.jl.git"}
 ScrewConnections = {rev = "main", url = "https://github.com/runtosolve/ScrewConnections.git"}
 SectionProperties = {rev = "main", url = "https://github.com/runtosolve/SectionProperties.jl.git"}
 

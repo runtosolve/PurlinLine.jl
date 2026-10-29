@@ -1905,7 +1905,9 @@ function plaut_beam_interface(purlin_line)
     #Assemble and solve the PlautBeamFiniteElement beam model.
     model = PlautBeamFiniteElement.BeamModel(L=purlin_line_length, nel=nel, section=section, material=material,
         restraint=restraint, q=q, θ=θ_beam, bc_left=bc_left, bc_right=bc_right, interior_supports=interior_supports, interior_dofs=interior_dofs)
-    sol = PlautBeamFiniteElement.solve_beam(model)
+    #The equilibrium [Ke + Kg(q)] d = F(q) is linear in d (Kg depends on the load only), so it is solved
+    #directly with a sparse factorization rather than by Newton-Raphson; both give the same solution.
+    sol = PlautBeamFiniteElement.solve_beam_linear(model)
 
     #Evaluate deflections at the existing (nonuniform) z mesh so downstream code
     #(calculate_internal_forces, etc.) can use them exactly as before. z comes from a
